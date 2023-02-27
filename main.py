@@ -6,6 +6,7 @@ from sklearn import preprocessing
 from scipy.spatial.distance import cdist
 from sklearn.metrics import roc_curve
 from sklearn.metrics import auc
+from sklearn.neighbors import KNeighborsClassifier
 
 def parse_d2z():
     path = "data/D2z.txt"
@@ -80,7 +81,6 @@ def eval_neighbors_d2z(p,data,labels=None,k=1,use_email_dataset=True,p_is_matrix
 
     
     if k>1:
-        print(f"Done with distances. Time:{end-start} seconds")
         nearest = distances[:k]
         assert(len(nearest) == k)
         table = {}
@@ -93,7 +93,7 @@ def eval_neighbors_d2z(p,data,labels=None,k=1,use_email_dataset=True,p_is_matrix
         its.sort(key=lambda x: x[1])
         return its[0][0]
     else:
-        print(f"Done with distances. Time:{end-start} seconds")
+        
         return distances[0][1]        
 
 def fake_dataset():
@@ -110,7 +110,7 @@ def fake_dataset():
     return data
 
 def eval_folds(data,test_set=False):
-    from sklearn.neighbors import KNeighborsClassifier
+    
     features,labels = data
     # features = preprocessing.normalize(features)
     fold_size = 1000
@@ -158,17 +158,38 @@ def eval_folds(data,test_set=False):
     
     return x_axis,y_axis,max_ac
 
-def evaluate_metrics():
-    f1 = [[471, 252], [173, 104]]
-    f2 = [[465, 250], [185, 100]]
-    f3 = [[487, 228], [183, 102]]
-    f4 = [[486, 229], [179, 106]]
-    f5 = [[425, 290], [192, 93]]
-    folds = [f1,f2,f3,f4,f5]
+
+def Q2Solution(data):
+
+    features,labels = data
+    # features = preprocessing.normalize(features)
+    fold_size = 1000
+    max_ac = 0
+    folds = []
+    for i in range(0,features.shape[0],fold_size):
+        tracking = [[0,0],[0,0]]
+        testing_labels = labels[i:i+fold_size]
+        testing = features[i:i+fold_size,:]
+        training = np.vstack((features[0:i,:],features[i+fold_size:,:]))
+        training_labels = np.hstack((labels[0:i],labels[i+fold_size:]))
+    
+
+        results,confidences = eval_neighbors_d2z(testing,training,use_email_dataset=True,labels=training_labels,k=1,p_is_matrix=True)
+
+        for j in range(testing.shape[0]):
+            p = testing[j]
+            l = results[j]
+            # l = eval_neighbors_d2z(p,training,use_email_dataset=True,labels=training_labels,k=k)
+            tracking[testing_labels[j]][l]+=1
+        
+        folds.append(tracking)
+    return folds
+
+
+def evaluate_metrics(folds):
     count = 0
 
     for f in folds:
-        
         accuracy = (f[0][0] + f[1][1])/(f[0][0] + f[1][1]+ f[1][0]+ f[0][1])
         recall = (f[0][0])/(f[0][0] + f[1][0])
         percision = (f[0][0])/(f[0][0] + f[0][1])
@@ -247,7 +268,32 @@ def train_lr(training):
         return w
 
 
-def logistic_regression(data):
+def logistic_regression(data,return_tracking=True):
+    w = np.ones(3000)
+    x,y = data
+    y = y.astype(int)
+    fold_size = 1000
+    folds = []
+    for i in range(0,x.shape[0],fold_size):
+        tracking = [[0,0],[0,0]]
+        testing_labels = y[i:i+fold_size]
+        testing = x[i:i+fold_size,:]
+        training = np.vstack((x[0:i,:],x[i+fold_size:,:]))
+        training_labels = np.hstack((y[0:i],y[i+fold_size:]))
+        w = train_lr((training,training_labels))
+
+        for j in range(0,len(testing)):
+            p=testing[j]
+            pred = sigma(w,p)
+            tracking[pred][testing_labels[j]]+=1
+        folds.append(tracking)
+
+    if return_tracking:
+        return w,folds
+    else:
+        return w
+
+def logistic_regression_one_set(data,tset):
     w = np.ones(3000)
     x,y = data
     y = y.astype(int)
@@ -256,8 +302,12 @@ def logistic_regression(data):
     x_axis = []
     y_axis =[]
     test_set_num=0
+    c =0 
     for i in range(0,x.shape[0],fold_size):
         tracking = [[0,0],[0,0]]
+        if c != tset:
+            c+=1
+            continue
         testing_labels = y[i:i+fold_size]
         testing = x[i:i+fold_size,:]
         training = np.vstack((x[0:i,:],x[i+fold_size:,:]))
@@ -279,9 +329,6 @@ def logistic_regression(data):
             y_axis=Y
             test_set_num = i
             print(f"TEST SET = {i}")
-        
-        with open("./tmp2.txt","a+") as f:
-            f.write(f"{tracking}\n")
     
     return w,x_axis,y_axis,max_ac,test_set_num
 
@@ -352,7 +399,7 @@ def make_plot(data,fake):
     l3_patch = mpatches.Patch(color='black', label='Training Data')
     
     for i in fake:
-        l = eval_neighbors_d2z(i,data,k=3)
+        l = eval_neighbors_d2z(i,data,k=1,use_email_dataset=False)
         plt.scatter(i[0],i[1],color=my_colors[l])
     for p in data:
         plt.scatter(p[0],p[1], color="black")
@@ -362,20 +409,28 @@ def make_plot(data,fake):
 
             
 if __name__ == "__main__":
-    # data = parse_d2z()
-    # fake = fake_dataset()
-    # make_plot(data,fake)
+    #Question 1 Code
+    data = parse_d2z()
+    fake = fake_dataset()
+    make_plot(data,fake)
 
+    #Parse email file
     data_emails = parse_emails()
-    # evaluate_metrics()
-    w,x_axis,y_axis,ac1,test_set = logistic_regression(data_emails)
-    x_axis2,y_axis2,ac2 = eval_folds(data_emails,test_set=test_set)
-    plt.plot(x_axis,y_axis,label=f"Logistic Regression AUC = {ac1}")
-    plt.plot(x_axis2,y_axis2, label=f"5NN Algorithm AUC = {ac2}")
-    plt.xlabel("False Positives")
-    plt.ylabel("True Positives")
-    plt.legend()
-    plt.title("ROC Curve of 5NN vs Logistic Regression")
 
-    plt.savefig("ROC_CURVE.pdf")
+
+    #Question 2 Code
+    confusion_matrices = Q2Solution(data_emails)
+    evaluate_metrics(confusion_matrices)
+
+    # evaluate_metrics()
+    # w,x_axis,y_axis,ac1,test_set = logistic_regression(data_emails)
+    # x_axis2,y_axis2,ac2 = eval_folds(data_emails,test_set=test_set)
+    # plt.plot(x_axis,y_axis,label=f"Logistic Regression AUC = {ac1}")
+    # plt.plot(x_axis2,y_axis2, label=f"5NN Algorithm AUC = {ac2}")
+    # plt.xlabel("False Positives")
+    # plt.ylabel("True Positives")
+    # plt.legend()
+    # plt.title("ROC Curve of 5NN vs Logistic Regression")
+
+    # plt.savefig("ROC_CURVE.pdf")
     # make_knn_cross_validation_plot()
