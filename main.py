@@ -120,8 +120,7 @@ def eval_folds(data,test_set=False):
     y_axis = []
     max_ac = 0
     for k in ks:
-        with open("tmp_file.txt", "a+") as f:
-                f.write(f"k = {k}\n")
+        
         c=0
         for i in range(0,features.shape[0],fold_size):
             tracking = [[0,0],[0,0]]
@@ -131,7 +130,10 @@ def eval_folds(data,test_set=False):
             training_labels = np.hstack((labels[0:i],labels[i+fold_size:]))
             
             if c!= test_set:
+                c+=1
                 continue
+            else:
+                c+=1
         
             neigh = KNeighborsClassifier(n_neighbors=k)
             neigh.fit(training, training_labels.astype(int))
@@ -152,9 +154,6 @@ def eval_folds(data,test_set=False):
                 # l = eval_neighbors_d2z(p,training,use_email_dataset=True,labels=training_labels,k=k)
                 tracking[testing_labels[j]][l]+=1
         
-            with open("tmp_file.txt", "a+") as f:
-                f.write(f"f{c}={tracking}\n")
-            c+=1
     
     return x_axis,y_axis,max_ac
 
@@ -301,13 +300,16 @@ def logistic_regression_one_set(data,tset):
     max_auc = 0
     x_axis = []
     y_axis =[]
-    test_set_num=0
+
     c =0 
     for i in range(0,x.shape[0],fold_size):
         tracking = [[0,0],[0,0]]
         if c != tset:
             c+=1
             continue
+        else:
+            c+=1
+        
         testing_labels = y[i:i+fold_size]
         testing = x[i:i+fold_size,:]
         training = np.vstack((x[0:i,:],x[i+fold_size:,:]))
@@ -327,10 +329,8 @@ def logistic_regression_one_set(data,tset):
             max_ac = ac
             x_axis=X
             y_axis=Y
-            test_set_num = i
-            print(f"TEST SET = {i}")
     
-    return w,x_axis,y_axis,max_ac,test_set_num
+    return w,x_axis,y_axis,max_ac
 
 def make_knn_cross_validation_plot():
     k = 1
@@ -388,7 +388,10 @@ def make_knn_cross_validation_plot():
         y_axis.append(average_acc)
 
     plt.plot(x_axis,y_axis)
-    plt.savefig("roc_thing.pdf")
+    plt.xlabel("Values of K")
+    plt.ylabel("Average Accuracy")
+    plt.title("kNN 5-Fold Cross Validation")
+    plt.savefig("Q3_ROC_average.pdf")
 
 def make_plot(data,fake):
     import matplotlib.patches as mpatches
@@ -410,27 +413,34 @@ def make_plot(data,fake):
             
 if __name__ == "__main__":
     #Question 1 Code
-    data = parse_d2z()
-    fake = fake_dataset()
-    make_plot(data,fake)
+    # data = parse_d2z()
+    # fake = fake_dataset()
+    # make_plot(data,fake)
 
     #Parse email file
     data_emails = parse_emails()
 
 
     #Question 2 Code
-    confusion_matrices = Q2Solution(data_emails)
-    evaluate_metrics(confusion_matrices)
+    # confusion_matrices = Q2Solution(data_emails)
+    # evaluate_metrics(confusion_matrices)
 
-    # evaluate_metrics()
-    # w,x_axis,y_axis,ac1,test_set = logistic_regression(data_emails)
-    # x_axis2,y_axis2,ac2 = eval_folds(data_emails,test_set=test_set)
-    # plt.plot(x_axis,y_axis,label=f"Logistic Regression AUC = {ac1}")
-    # plt.plot(x_axis2,y_axis2, label=f"5NN Algorithm AUC = {ac2}")
-    # plt.xlabel("False Positives")
-    # plt.ylabel("True Positives")
-    # plt.legend()
-    # plt.title("ROC Curve of 5NN vs Logistic Regression")
+    #Question 3 Code
+    # confusion_matrices,folds = logistic_regression(data_emails,return_tracking=True)
+    # evaluate_metrics(folds)
 
-    # plt.savefig("ROC_CURVE.pdf")
+    #Question 4 Code
     # make_knn_cross_validation_plot()
+
+    #Question 5
+    w,x_axis,y_axis,ac1 = logistic_regression_one_set(data_emails,2)
+    x_axis2,y_axis2,ac2 = eval_folds(data_emails,test_set=2)
+    plt.plot(x_axis,y_axis,label=f"Logistic Regression AUC = {ac1}")
+    plt.plot(x_axis2,y_axis2, label=f"5NN Algorithm AUC = {ac2}")
+    plt.xlabel("False Positives")
+    plt.ylabel("True Positives")
+    plt.legend()
+    plt.title("ROC Curve of 5NN vs Logistic Regression")
+
+    plt.savefig("Q5_ROC_CURVE.pdf")
+    
